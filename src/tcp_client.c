@@ -7,9 +7,10 @@
 
 int main()
 {
-    int r,sockfd;
+    
+
+    int r,sockfd,x;
     struct addrinfo hints, *host;
-    const char *hello = "Howdy, TCP Server! \n";
     const int buffer_size = 1024;
     char buffer[buffer_size];
 
@@ -17,7 +18,7 @@ int main()
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
 
-    r = getaddrinfo("127.0.0.1", "8080", &hints, &host);
+    r = getaddrinfo(0, "8080", &hints, &host);
 
     if(r!=0)
     {
@@ -40,19 +41,38 @@ int main()
         perror("TCP Client");
         exit(1);
     }
-
-    r = send(sockfd, hello, strlen(hello), 0);
-
-    if (r==-1)
+    while(1)
     {
-        perror("TCP CLient");
-        exit(1);
+        printf("Type something:");
+        fgets(buffer, buffer_size,stdin);
+         
+        if (buffer[0] == '\n')
+        {
+            break;
+        }
+
+        for( x =0; x<buffer_size; x++)
+        {
+            if(buffer[x]== '\n')
+            {
+                buffer[x] = '\0';
+                break;
+            }
+        }
+        r = send(sockfd, buffer, strlen(buffer), 0);
+        
+        if (r==-1)
+        {
+            perror("TCP CLient");
+            exit(1);
+        }
+
+
+        r = recv(sockfd, buffer, buffer_size, 0);
+        buffer[r] = '\0';
+
+        printf("%s\n", buffer);
     }
-
-    r = recv(sockfd, buffer, buffer_size, 0);
-    buffer[r] = '\0';
-
-    printf("%s\n", buffer);
 
     freeaddrinfo(host);
     close(sockfd);
