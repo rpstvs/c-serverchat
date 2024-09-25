@@ -4,15 +4,19 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/select.h>
+
+#define TRUE 1
+#define FALSE 0
 
 int main()
 {
     
 
-    int r,sockfd,x;
+    int r,sockfd,x, done;
     struct addrinfo hints, *host;
-    const int buffer_size = 1024;
-    char buffer[buffer_size];
+    fd_set read_fd;
+    char buffer[BUFSIZ];
 
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_INET;
@@ -41,40 +45,53 @@ int main()
         perror("TCP Client");
         exit(1);
     }
-    while(1)
+    done = FALSE;
+    while(!done)
     {
-        printf("Type something:");
-        fgets(buffer, buffer_size,stdin);
-         
-        if (buffer[0] == '\n')
-        {
-            break;
-        }
+        FD_ZERO(&read_fd);
+        FD_SET(sockfd, &read_fd);
+        FD_SET(0, &read_fd);
+        r = select(sockfd + 1, &read_fd, NULL, NULL, 0);
 
-        for( x =0; x<buffer_size; x++)
-        {
-            if(buffer[x]== '\n')
-            {
-                buffer[x] = '\0';
-                break;
-            }
-        }
-        r = send(sockfd, buffer, strlen(buffer), 0);
-        
         if (r==-1)
         {
-            perror("TCP CLient");
+            perror("failed");
             exit(1);
         }
+        /*remote input*/
 
-
-        r = recv(sockfd, buffer, buffer_size, 0);
-        buffer[r] = '\0';
-
-        printf("%s\n", buffer);
+        if(FD_ISSET(sockfd, &read_fd))
+        {
+            r = recv(sockfd, buffer, BUFSIZ, 0);
+            if (r < 1)
+            {
+                puts("connection closed by peer");
+                break;
+            }
+            buffer[r] = '\0';
+			printf("%s",buffer);
+        }
+		/* local input  */
+		
+        if(FD_ISSET(0, &read_fd))
+        {
+            if(fgets(buffer, BUFSIZ, stdin) == NULL)
+            {
+                putchar('\n');
+            }
+            else if(strcmp(buffer, "close\n")==0)
+            {
+                done=TRUE;
+            }
+            else
+            {
+                send(sockfd, buffer,strlen(buffer),0);
+            }
+        }
+        
     }
 
-    freeaddrinfo(host);
+   
     close(sockfd);
 
     return(0);

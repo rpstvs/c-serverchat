@@ -12,16 +12,16 @@
 int main()
 {
     const char *port = "8080";
-    const char *welcome_msg = "Type 'close' to disconnect; 'shutdown' to stop";
-    const int hostname_size = 32;
-    char hostname[hostname_size];
-    char buffer[BUFSIZ];
+    
+    const int clientname_size = 32;
+    char clientname[clientname_size];
+    char buffer[BUFSIZ], sendstr[BUFSIZ];
     const int backlog = 5; /*max connections*/
-    char connection[backlog][hostname_size];
+    char connection[backlog][clientname_size];
     socklen_t address_len = sizeof(struct sockaddr);
     struct addrinfo hints, *server;
     struct sockaddr address;
-    int r, max_connect, fd, done;
+    int r, max_connect, fd,x, done;
     fd_set main_fd, read_fd;
     int serverfd, clientfd;
 
@@ -61,7 +61,7 @@ int main()
     puts("done");
 
     /*listening for incoming connections*/
-     printf("Listening...\n");
+     printf("Listening...");
     r = listen(serverfd,backlog);
 
     if (r == -1)
@@ -99,18 +99,29 @@ int main()
                         perror("failed");
                         exit(1);
                     }
-                    r = getnameinfo(&address, address_len, hostname, hostname_size, 0, 0, NI_NUMERICHOST);
-                    strcpy(connection[clientfd],hostname);
+                    r = getnameinfo(&address, address_len, clientname, clientname_size, 0, 0, NI_NUMERICHOST);
+                    strcpy(connection[clientfd],clientname);
                     printf("New connection from %s\n", connection[clientfd]);
 
                     FD_SET(clientfd, &main_fd);
 
-                    strcpy(buffer, "Hello to ");
-                    strcat(buffer, connection[clientfd]);
-                    strcat(buffer, "!\n");
-                    strcat(buffer, welcome_msg);
-                    send(clientfd, buffer, strlen(buffer), 0);
+                    strcpy(buffer,"SERVER> Welcome ");
+					strcat(buffer,connection[clientfd]);
+					strcat(buffer," to the chat server\n");
+					strcat(buffer,"SERVER> Type 'close' to disconnect; 'shutdown' to stop\n");
+					send(clientfd,buffer,strlen(buffer),0);
 
+
+                    strcpy(buffer,"SERVER> ");
+					strcat(buffer,connection[clientfd]);
+					strcat(buffer," has joined the server\n");
+
+                    for( x=serverfd+1; x<max_connect; x++ )
+					{
+						if( FD_ISSET(x,&main_fd) )
+							send(x,buffer,strlen(buffer),0);
+					}
+                    printf("%s", buffer);
                 }
                 else
                 {
@@ -121,7 +132,19 @@ int main()
                         FD_CLR(fd, &main_fd);
                         close(fd);
 
-                        printf("%s closed\n", connection[fd]);
+                        strcpy(buffer,"SERVER> ");
+						strcat(buffer,connection[fd]);
+						strcat(buffer," disconnected\n");
+						/* loop through all connections (not the server) to send the string */
+						for( x=serverfd+1; x<max_connect; x++ )
+						{
+							if( FD_ISSET(x,&main_fd) )
+							{
+								send(x,buffer,strlen(buffer),0);
+							}
+						}
+						/* output the string locally */
+						printf("%s",buffer);
 
                     }
                     else
@@ -133,7 +156,21 @@ int main()
                         }
                         else
                         {
-                            send(fd,buffer,strlen(buffer),0);
+                            strcpy(sendstr,connection[fd]);
+							strcat(sendstr,"> ");
+							strcat(sendstr,buffer);
+							/* loop through all connections, but not the server */
+							for( x=serverfd+1; x<max_connect; x++ )
+							{
+								/* check for an active file descriptor */
+								if( FD_ISSET(x,&main_fd) )
+								{
+									/* send the built string */
+									send(x,sendstr,strlen(sendstr),0);
+								}
+							}
+							/* echo the string to the server as well */
+							printf("%s",sendstr);
                         }
                     }
                 }
